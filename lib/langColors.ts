@@ -1,0 +1,83 @@
+// GitHub linguist colors for common languages; anything unknown gets a
+// deterministic pastel derived from its name.
+import { hashString } from "./rng";
+
+const LINGUIST: Record<string, string> = {
+  TypeScript: "#3178c6",
+  JavaScript: "#f1e05a",
+  Python: "#3572A5",
+  Java: "#b07219",
+  "C#": "#178600",
+  "C++": "#f34b7d",
+  C: "#555555",
+  Go: "#00ADD8",
+  Rust: "#dea584",
+  Ruby: "#701516",
+  PHP: "#4F5D95",
+  Swift: "#F05138",
+  Kotlin: "#A97BFF",
+  Dart: "#00B4AB",
+  HTML: "#e34c26",
+  CSS: "#563d7c",
+  SCSS: "#c6538c",
+  Shell: "#89e051",
+  Vue: "#41b883",
+  Svelte: "#ff3e00",
+  Elixir: "#6e4a7e",
+  Erlang: "#B83998",
+  Haskell: "#5e5086",
+  Scala: "#c22d40",
+  Clojure: "#db5855",
+  Lua: "#000080",
+  R: "#198CE7",
+  Julia: "#a270ba",
+  Perl: "#0298c3",
+  "Objective-C": "#438eff",
+  Zig: "#ec915c",
+  OCaml: "#ef7a08",
+  Nim: "#ffc200",
+  Crystal: "#000100",
+  Solidity: "#AA6746",
+  MATLAB: "#e16737",
+  Assembly: "#6E4C13",
+  Fortran: "#4d41b1",
+  COBOL: "#8a9a5b",
+  Groovy: "#4298b8",
+  "F#": "#b845fc",
+  PowerShell: "#012456",
+  TeX: "#3D6117",
+  "Jupyter Notebook": "#DA5B0B",
+  Dockerfile: "#384d54",
+  Makefile: "#427819",
+  "Vim Script": "#199f4b",
+  Astro: "#ff5a03",
+  EJS: "#a91e50",
+  Handlebars: "#f7931e",
+  GDScript: "#355570",
+  HCL: "#844FBA",
+  Nix: "#7e7eff",
+  Emacs: "#c065db",
+  CoffeeScript: "#244776",
+  ReScript: "#ed5051",
+  Elm: "#60B5CC",
+  Racket: "#3c5caa",
+  "Common Lisp": "#3fb68b",
+  Prolog: "#74283c",
+  Ada: "#02f88c",
+  D: "#ba595e",
+  V: "#4f87c4",
+  Odin: "#60AFFE",
+  Gleam: "#ffaff3",
+  Mojo: "#ff4c1f",
+  Cython: "#fedf5b",
+  WebAssembly: "#04133b",
+};
+
+export function languageColor(lang: string): string {
+  const known = LINGUIST[lang];
+  if (known) return known;
+  // deterministic pastel fallback
+  const [h] = hashString(lang);
+  const hue = h % 360;
+  return `hsl(${hue}, 55%, 62%)`;
+}
