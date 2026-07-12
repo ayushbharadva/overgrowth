@@ -5,6 +5,10 @@
 /.next/
 /out/
 
+# env — never commit keys
+.env
+.env.*
+
 # misc
 .DS_Store
 *.pem
