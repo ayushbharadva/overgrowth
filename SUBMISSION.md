@@ -1,6 +1,6 @@
-# DEV post draft — paste into dev.to, tag `#weekendchallenge`
+# DEV post — paste into dev.to, tag `#weekendchallenge`
 
-> Before posting: add a cover image (use a saved PNG of your own tree), a short demo GIF, and screenshots of 2–3 contrasting trees.
+> Before posting: add a cover image (a saved PNG of YOUR tree), a short demo GIF after the live link, and two contrasting screenshots where marked. Replace `{VERCEL_URL}` if the Vercel deploy URL differs.
 
 ---
 
@@ -10,68 +10,69 @@
 
 ---
 
-## What I built
+*(cover image: your own tree PNG)*
 
-**Overgrowth** grows a living, breathing generative tree out of a GitHub username — a portrait of how that person builds, drawn from every repo, language, star and late-night push.
+## What I Built
 
-Type a name. Watch a few seconds of growth. Meet the tree you've been feeding for years without knowing it.
+**Overgrowth** grows a living, breathing generative tree out of a GitHub username — a portrait of how a person builds, drawn from every repo, language, star and late-night push.
 
-👉 **Try yours: https://ayushbharadva.github.io/overgrowth/**
+Type a name. Watch a few seconds of growth. Meet the tree you've been feeding for years without knowing it. Then the tree does something I didn't expect to love this much: **it writes you a short poem about yourself, and reads it to you out loud.**
 
-*(cover image / demo GIF here)*
+The challenge said *passion* — rivalries, fandom, the World Cup. But the line that got me was **"the love that fuels late-night side projects."** That love already has a data trail; GitHub just renders it as the least romantic thing imaginable — a grid of flat green squares. I wanted the same history to grow something that looks *alive*. The emotional distance between "a chart of my commits" and "a tree my commits have visibly been feeding" is the entire project.
 
-## The inspiration
+And it's honest. Your abandoned repos are right there on the tree — bare, grey, leafless. Every builder has them. The tree doesn't hide its scars, and that's what makes it a portrait instead of a decoration.
 
-The challenge said *passion* — and offered rivalry, fandom, the World Cup. But the line that got me was **"the love that fuels late-night side projects."**
+## Demo
 
-That love already has a data trail. It's just rendered as the least romantic thing imaginable: a grid of flat green squares.
+👉 **Grow yours: {VERCEL_URL}**
 
-Years of building. Languages you fell for. The project you pushed to at 2 AM for a month straight. The repos you loved, then quietly abandoned. All of it flattened into a heatmap.
+*(demo GIF here: type username → tree grows → poem appears → 🔊 hear your tree)*
 
-So I made the same history grow something that looks *alive* instead. The emotional distance between "a chart of my commits" and "a tree that my commits have visibly been feeding" — that distance is the entire project.
+Two trees I met this weekend, same API, opposite souls:
 
-## How behavior becomes biology
+*(screenshot: torvalds — a moonlit monolingual C giant, 250k-star blossoms, bare dead limbs, leaning into the night)*
 
-The tree isn't a skin on a chart. Builder behavior maps onto growth rules:
+*(screenshot: a polyglot — dense multicolored canopy in real linguist colors)*
+
+My favorite reading it produced, for a tree grown from 15 years of C:
+
+> *"Fed by 15 years of C — leaning into the late hours — 250,742 stars in blossom, 2 scars it doesn't hide."*
+
+## Code
+
+**https://github.com/ayushbharadva/overgrowth** — built entirely within the challenge window (see commit timestamps), AI-assisted with Claude Code, as the rules allow.
+
+## How I Built It
+
+**How behavior becomes biology.** The tree isn't a skin on a chart — builder behavior maps onto growth rules:
 
 - **Years on GitHub + repos** → height and branching depth
-- **Push activity** → trunk thickness and how fast it grows
-- **Language diversity** → branching and canopy color, using GitHub's real linguist colors — a monolingual C veteran grows a moonlit silver tree; a JavaScript polyglot grows a riot of yellow and blue
+- **Push activity** → trunk thickness and growth speed
+- **Language diversity** → branching and canopy colors (GitHub's real linguist colors)
 - **Stars** → glowing blossoms
-- **Late-night pushes** → the tree leans and grows crooked, reaching for something
-- **Abandoned repos** → bare grey leafless branches. The honest scars. Every builder has them; the tree doesn't hide them.
-- **Recent activity** → leaf color, vivid to brown
+- **Late-night pushes** → the tree leans and grows crooked, reaching
+- **Abandoned repos (18+ months)** → bare grey branches
+- **Recency** → leaf color, vivid to brown
 
-And it's **deterministic** — a seeded RNG keyed off the username means your tree is *yours*. Regrow it tomorrow, it's the same tree. Push for another year and it will have changed, because you did.
+A seeded RNG (mulberry32) keyed off the username makes it **deterministic**: your tree is yours. Regrow it tomorrow — same tree. Push for another year — it will have changed, because you did.
 
-Two trees I met this weekend:
+**The generative core** is Next.js + TypeScript + Canvas 2D. Three unauthenticated GitHub REST calls run from the browser and distill into growth parameters for a recursive branch system. Things I had to learn the hard way in one weekend:
 
-*(screenshot: torvalds — monolingual silver-grey giant, 250k-star blossoms, one huge bare dead limb)*
+- **Negative gravitropism** — early trees curled into drooping ferns. Real branches spring back toward the sky, so mine track their cumulative angle from vertical and correct toward it.
+- **Depth-damped lean** — a night owl's lean compounded over nine branching levels turns a tree into a spiral. Damped by depth, the tree *bends* instead.
+- **Leaf-lightness floor** — C's linguist color is `#555555`; without a minimum-lightness lift, Linus Torvalds' tree looked dead. Now it looks like a birch in moonlight, which felt right.
+- **Blossoms in a second pass** — 250k stars were getting buried under the leaves they earned.
 
-*(screenshot: a polyglot — dense multicolored canopy)*
+Growth animates depth-by-depth via `requestAnimationFrame`, then settles into idle sway with stars and fireflies — 60fps on the biggest trees I could find. Save your tree as PNG, share it with a `?u=` link.
 
-## How it works
+**The tree's voice.** Every tree gets a deterministic one-line reading composed from its stats. When the full stack is live, that upgrades: **Gemini** receives the tree's raw signals — years, languages, blossoms, scars, night-owl rhythm — and writes a 3-line poem *in the voice of the tree, addressed to its owner*. Then **ElevenLabs** reads it aloud. Hearing a calm voice say the words your abandoned repos became is genuinely a little emotional, and I built the thing.
 
-- **Next.js + TypeScript + Canvas 2D**, fully client-side. No backend, no database, no tokens, no keys. $0 to run.
-- Three unauthenticated GitHub REST calls from the browser (`/users`, `/repos`, `/events/public`) get distilled into growth parameters.
-- A recursive branch system with a few things I had to learn the hard way:
-  - **Negative gravitropism** — early trees curled into drooping ferns. Real branches spring back toward the sky, so mine track their cumulative angle from vertical and correct toward it.
-  - **Depth-damped lean** — a night owl's lean compounded over nine branching levels turns a tree into a spiral. Damping it with depth makes the tree *bend*, like it should.
-  - **Leaf-lightness floor** — C's linguist color is `#555555`. Without a minimum-lightness lift, Linus Torvalds' tree looked dead. Now it looks like a birch in moonlight, which felt right.
-  - **Blossoms drawn in a second pass** — 700k stars were getting buried under the leaves they earned.
-- Growth animates depth-by-depth with `requestAnimationFrame`, then settles into an idle sway with twinkling stars and fireflies. 60 fps even on the biggest trees I could find.
-- Save your tree as a PNG, or share it with a `?u=` link.
+Both run behind two small serverless routes so no keys ever touch the client — and everything degrades gracefully: no backend, and you still get the tree and its written reading.
 
-## The honest part
+## Prize Categories
 
-Without an auth token you can't get the true contribution graph — so Overgrowth reads languages, stars, dormancy and push-hour rhythms instead. And the unauthenticated rate limit is 60 requests/hour per IP; if the forest gets crowded, it tells you kindly.
+**Google AI** (Gemini writes each tree's poem from its growth signals) and **ElevenLabs** (the tree reads its poem aloud).
 
-Code: **https://github.com/ayushbharadva/overgrowth** — built within the challenge window, AI-assisted (Claude Code), as the rules allow.
+---
 
-## Try these
-
-- Your own username, obviously. That's the whole point.
-- Your friend's — completely different creature.
-- `torvalds` next to `sindresorhus`. Same API, opposite souls.
-
-Every builder has been growing one of these for years. Come meet yours. 🌿
+Try `torvalds` next to `sindresorhus`. Then try your own username — that's the whole point. Every builder has been growing one of these for years. Come meet yours. 🌿

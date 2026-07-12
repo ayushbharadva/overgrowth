@@ -26,9 +26,13 @@ Deterministic seeded RNG (mulberry32 keyed off the username) drives a recursive 
 
 Type a username. Watch it grow. Paste your friend's username and meet a completely different creature. Try `torvalds` (a moonlit monolingual C giant with 250k-star blossoms and bare scars) next to a polyglot like `sindresorhus` (a dense multicolored canopy).
 
+## The tree speaks
+
+Every tree gets a **reading** — a one-line caption composed deterministically from its stats. With the full stack deployed, that upgrades: **Gemini** writes a 3-line poem in the voice of the tree, addressed to its owner, and **ElevenLabs** reads it aloud ("🔊 hear your tree"). Both degrade gracefully — without the backend you still get the tree and its written reading.
+
 ## Tech
 
-- **Next.js + TypeScript**, single page, fully client-side — no backend, no database, no auth, no API keys, $0 to run
+- **Next.js + TypeScript**, single page — the tree itself is fully client-side; two optional serverless routes (`/api/poem`, `/api/voice`) power the AI reading, keys never touch the browser
 - **Canvas 2D** with `requestAnimationFrame` — depth-staggered growth animation, then a perpetual idle sway, twinkling stars and fireflies
 - **GitHub public REST API**, unauthenticated, fetched from the browser: `/users/{u}`, `/users/{u}/repos`, `/users/{u}/events/public`
 - Save your tree as a PNG, share it with a `?u=` link
@@ -45,6 +49,15 @@ Type a username. Watch it grow. Paste your friend's username and meet a complete
 npm install
 npm run dev
 ```
+
+Optional, for the AI reading + voice:
+
+```bash
+GEMINI_API_KEY=…        # Google AI Studio (free tier)
+ELEVENLABS_API_KEY=…    # ElevenLabs (free tier)
+```
+
+Deploys: Vercel for the full app; `scripts/deploy-pages.sh` publishes the static tree-only mirror to GitHub Pages.
 
 ## Challenge eligibility
 
