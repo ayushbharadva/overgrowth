@@ -1,6 +1,6 @@
 # DEV post — paste into dev.to, tag `#weekendchallenge`
 
-> Before posting: add a cover image (a saved PNG of YOUR tree), a short demo GIF after the live link, and two contrasting screenshots where marked. Replace `{VERCEL_URL}` if the Vercel deploy URL differs.
+> Before posting: add a cover image (a saved PNG of YOUR tree), a short demo GIF after the live link, and two contrasting screenshots where marked.
 
 ---
 
@@ -24,7 +24,7 @@ And it's honest. Your abandoned repos are right there on the tree — bare, grey
 
 ## Demo
 
-👉 **Grow yours: {VERCEL_URL}**
+👉 **Grow yours: https://overgrowth-one.vercel.app**
 
 *(demo GIF here: type username → tree grows → poem appears → 🔊 hear your tree)*
 

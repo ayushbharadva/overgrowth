@@ -22,7 +22,9 @@ Deterministic seeded RNG (mulberry32 keyed off the username) drives a recursive 
 
 ## Try it
 
-**Live: https://ayushbharadva.github.io/overgrowth/**
+**Live: https://overgrowth-one.vercel.app** (full experience: tree + Gemini poem + ElevenLabs voice)
+
+Static mirror (tree + written reading only): https://ayushbharadva.github.io/overgrowth/
 
 Type a username. Watch it grow. Paste your friend's username and meet a completely different creature. Try `torvalds` (a moonlit monolingual C giant with 250k-star blossoms and bare scars) next to a polyglot like `sindresorhus` (a dense multicolored canopy).
 
