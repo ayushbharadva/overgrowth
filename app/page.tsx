@@ -5,6 +5,7 @@ import { TreeRenderer, CANVAS_W, CANVAS_H } from "@/lib/render";
 import { TreeParams, fakeParams } from "@/lib/params";
 import { fetchTreeParams, GithubError } from "@/lib/github";
 import { languageColor } from "@/lib/langColors";
+import { treeReading } from "@/lib/reading";
 
 type Phase = "idle" | "loading" | "growing" | "grown" | "error";
 
@@ -16,6 +17,9 @@ export default function Home() {
   const [error, setError] = useState("");
   const [params, setParams] = useState<TreeParams | null>(null);
   const [demo, setDemo] = useState(false);
+  const [poem, setPoem] = useState<string[] | null>(null);
+  const [voiceState, setVoiceState] = useState<"off" | "ready" | "loading" | "playing">("off");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const growFromParams = useCallback((p: TreeParams) => {
     const canvas = canvasRef.current;
@@ -37,10 +41,28 @@ export default function Home() {
       setPhase("loading");
       setError("");
       setDemo(false);
+      setPoem(null);
+      setVoiceState("off");
+      audioRef.current?.pause();
       try {
         const p = await fetchTreeParams(u);
         window.history.replaceState(null, "", `?u=${encodeURIComponent(u)}`);
         growFromParams(p);
+        // the tree writes a poem while it grows (503/404 = feature not
+        // deployed; the deterministic reading stays)
+        fetch("/api/poem", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stats: p.stats }),
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            if (d?.lines?.length) {
+              setPoem(d.lines);
+              setVoiceState("ready");
+            }
+          })
+          .catch(() => {});
       } catch (e) {
         setPhase("error");
         setError(
@@ -72,6 +94,32 @@ export default function Home() {
     a.href = renderer.toPNG();
     a.download = `overgrowth-${params.stats.username}.png`;
     a.click();
+  };
+
+  const hearTree = async () => {
+    if (!poem || voiceState === "loading") return;
+    if (voiceState === "playing") {
+      audioRef.current?.pause();
+      setVoiceState("ready");
+      return;
+    }
+    setVoiceState("loading");
+    try {
+      const r = await fetch("/api/voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: poem.join("\n") }),
+      });
+      if (!r.ok) throw new Error();
+      const blob = await r.blob();
+      const audio = new Audio(URL.createObjectURL(blob));
+      audioRef.current = audio;
+      audio.onended = () => setVoiceState("ready");
+      await audio.play();
+      setVoiceState("playing");
+    } catch {
+      setVoiceState("ready");
+    }
   };
 
   const copyLink = async () => {
@@ -139,6 +187,27 @@ export default function Home() {
 
       {stats && !demo && (phase === "grown" || phase === "growing") && (
         <>
+          <div className="reading">
+            {poem ? (
+              <blockquote className="poem">
+                {poem.map((line, i) => (
+                  <span key={i}>{line}</span>
+                ))}
+                <cite>— your tree, via Gemini</cite>
+              </blockquote>
+            ) : (
+              <p className="caption">{treeReading(stats)}</p>
+            )}
+            {voiceState !== "off" && (
+              <button className="voice" onClick={hearTree}>
+                {voiceState === "loading"
+                  ? "the tree clears its throat…"
+                  : voiceState === "playing"
+                  ? "◼ hush"
+                  : "🔊 hear your tree"}
+              </button>
+            )}
+          </div>
           <div className="stats">
             {stats.languages.slice(0, 5).map((lang) => (
               <span className="chip" key={lang}>
