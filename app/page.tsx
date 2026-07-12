@@ -20,6 +20,8 @@ export default function Home() {
   const [poem, setPoem] = useState<string[] | null>(null);
   const [voiceState, setVoiceState] = useState<"off" | "ready" | "loading" | "playing">("off");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // replaying a poem shouldn't re-bill the TTS API
+  const voiceCacheRef = useRef<Map<string, string>>(new Map());
 
   const growFromParams = useCallback((p: TreeParams) => {
     const canvas = canvasRef.current;
@@ -90,8 +92,16 @@ export default function Home() {
   const savePNG = () => {
     const renderer = rendererRef.current;
     if (!renderer || !params) return;
+    // the exported image carries its reading: the poem when we have one,
+    // otherwise the deterministic caption split at its em-dashes
+    const lines = demo
+      ? undefined
+      : poem ??
+        treeReading(params.stats)
+          .split(" — ")
+          .map((s, i) => (i ? `— ${s}` : s));
     const a = document.createElement("a");
-    a.href = renderer.toPNG();
+    a.href = renderer.toPNG(lines);
     a.download = `overgrowth-${params.stats.username}.png`;
     a.click();
   };
@@ -105,14 +115,19 @@ export default function Home() {
     }
     setVoiceState("loading");
     try {
-      const r = await fetch("/api/voice", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: poem.join("\n") }),
-      });
-      if (!r.ok) throw new Error();
-      const blob = await r.blob();
-      const audio = new Audio(URL.createObjectURL(blob));
+      const text = poem.join("\n");
+      let url = voiceCacheRef.current.get(text);
+      if (!url) {
+        const r = await fetch("/api/voice", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+        if (!r.ok) throw new Error();
+        url = URL.createObjectURL(await r.blob());
+        voiceCacheRef.current.set(text, url);
+      }
+      const audio = new Audio(url);
       audioRef.current = audio;
       audio.onended = () => setVoiceState("ready");
       await audio.play();

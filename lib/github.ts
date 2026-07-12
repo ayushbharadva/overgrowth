@@ -34,6 +34,34 @@ interface GhEvent {
 
 const API = "https://api.github.com";
 
+// GitHub allows ~60 unauthenticated requests/hour per IP and each tree costs
+// three, so regrows within the hour come from localStorage instead
+const CACHE_TTL = 3600_000;
+
+function cacheKey(u: string): string {
+  return `overgrowth:v1:${u}`;
+}
+
+function readCache(u: string): TreeParams | null {
+  try {
+    const raw = localStorage.getItem(cacheKey(u));
+    if (!raw) return null;
+    const { t, p } = JSON.parse(raw);
+    if (!p || Date.now() - t > CACHE_TTL) return null;
+    return p as TreeParams;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(u: string, p: TreeParams) {
+  try {
+    localStorage.setItem(cacheKey(u), JSON.stringify({ t: Date.now(), p }));
+  } catch {
+    // storage full or unavailable — caching is best-effort
+  }
+}
+
 async function gh<T>(path: string): Promise<T> {
   let res: Response;
   try {
@@ -65,6 +93,9 @@ function clamp(v: number, lo: number, hi: number): number {
 const DAY = 86400000;
 
 export async function fetchTreeParams(username: string): Promise<TreeParams> {
+  const cached = readCache(username.toLowerCase());
+  if (cached) return cached;
+
   const user = await gh<GhUser>(`/users/${encodeURIComponent(username)}`);
   const [repos, events] = await Promise.all([
     gh<GhRepo[]>(
@@ -136,7 +167,7 @@ export async function fetchTreeParams(username: string): Promise<TreeParams> {
       ? languages.slice(0, 5).map(languageColor)
       : DEFAULT_PALETTE;
 
-  return {
+  const params: TreeParams = {
     seed: user.login,
     maxDepth: Math.round(
       clamp(5.2 + Math.log2(1 + years) * 0.9 + Math.min(repoCount, 80) / 40, 5, 9)
@@ -153,4 +184,9 @@ export async function fetchTreeParams(username: string): Promise<TreeParams> {
     palette,
     stats,
   };
+  writeCache(user.login.toLowerCase(), params);
+  if (username.toLowerCase() !== user.login.toLowerCase()) {
+    writeCache(username.toLowerCase(), params);
+  }
+  return params;
 }

@@ -157,8 +157,40 @@ export class TreeRenderer {
     cancelAnimationFrame(this.raf);
   }
 
-  toPNG(): string {
-    return this.canvas.toDataURL("image/png");
+  // exports the tree; when reading lines are passed, they're baked into a
+  // band below the frame so the shared image carries its own story
+  toPNG(reading?: string[]): string {
+    if (!reading?.length) return this.canvas.toDataURL("image/png");
+    const dpr = this.dpr;
+    const pad = 36;
+    const lh = 30;
+    const extra = pad * 2 + lh * reading.length;
+    const out = document.createElement("canvas");
+    out.width = CANVAS_W * dpr;
+    out.height = (CANVAS_H + extra) * dpr;
+    const ctx = out.getContext("2d")!;
+    ctx.scale(dpr, dpr);
+    // continue the sky's bottom color so the band reads as one image
+    ctx.fillStyle = "#0e1526";
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H + extra);
+    ctx.drawImage(
+      this.canvas,
+      0,
+      0,
+      this.canvas.width,
+      this.canvas.height,
+      0,
+      0,
+      CANVAS_W,
+      CANVAS_H
+    );
+    ctx.font = "italic 17px Georgia, 'Times New Roman', serif";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#c5cfe6";
+    reading.forEach((line, i) =>
+      ctx.fillText(line, CANVAS_W / 2, CANVAS_H + pad + i * lh, CANVAS_W - 90)
+    );
+    return out.toDataURL("image/png");
   }
 
   private drawFrame(now: number) {
