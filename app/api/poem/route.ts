@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+const MODEL = process.env.GEMINI_MODEL ?? "gemini-flash-latest";
 
 export async function POST(req: NextRequest) {
   const key = process.env.GEMINI_API_KEY;
@@ -50,7 +50,26 @@ Speak as the tree, to them (their username is ${username}). Return only the 3 li
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.9, maxOutputTokens: 1200 },
+          generationConfig: {
+            temperature: 0.9,
+            maxOutputTokens: 4000,
+            // schema-enforced JSON + no thinking: keeps draft scratch-work
+            // out of the poem
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "OBJECT",
+              properties: {
+                lines: {
+                  type: "ARRAY",
+                  items: { type: "STRING" },
+                  minItems: 3,
+                  maxItems: 3,
+                },
+              },
+              required: ["lines"],
+            },
+            thinkingConfig: { thinkingBudget: 0 },
+          },
         }),
       }
     );
@@ -58,17 +77,22 @@ Speak as the tree, to them (their username is ${username}). Return only the 3 li
       return NextResponse.json({ error: "upstream" }, { status: 502 });
     }
     const data = await r.json();
-    const text: string | undefined =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) {
+    const text: string = (data?.candidates?.[0]?.content?.parts ?? [])
+      .filter((p: { thought?: boolean; text?: string }) => !p.thought && p.text)
+      .map((p: { text: string }) => p.text)
+      .join("");
+    let lines: string[] = [];
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed?.lines)) {
+        lines = parsed.lines.map((l: unknown) => String(l).trim()).filter(Boolean).slice(0, 3);
+      }
+    } catch {
+      // fall through to the length check
+    }
+    if (lines.length < 3) {
       return NextResponse.json({ error: "empty" }, { status: 502 });
     }
-    const lines = text
-      .trim()
-      .split("\n")
-      .map((l: string) => l.trim())
-      .filter(Boolean)
-      .slice(0, 3);
     return NextResponse.json(
       { lines },
       { headers: { "Cache-Control": "public, s-maxage=3600" } }

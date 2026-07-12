@@ -4,8 +4,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-// default: "Rachel" — calm, narrative
-const VOICE_ID = process.env.ELEVENLABS_VOICE_ID ?? "21m00Tcm4TlvDq8ikWAM";
+// default: "George" — warm narrator, available on the free tier
+// (Rachel and other library voices 402 without a paid plan)
+const VOICE_ID = process.env.ELEVENLABS_VOICE_ID ?? "JBFqnCBsd6RMkjVDRZzb";
 const MODEL_ID = process.env.ELEVENLABS_MODEL_ID ?? "eleven_multilingual_v2";
 
 export async function POST(req: NextRequest) {
