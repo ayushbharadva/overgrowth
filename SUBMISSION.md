@@ -1,6 +1,6 @@
 # DEV post draft — paste into dev.to, tag `#weekendchallenge`
 
-> Fill in before posting: `{DEPLOYED_URL}`, `{REPO_URL}`, cover image (use a saved PNG of your own tree), demo GIF, screenshots of 2–3 contrasting trees.
+> Before posting: add a cover image (use a saved PNG of your own tree), a short demo GIF, and screenshots of 2–3 contrasting trees.
 
 ---
 
@@ -16,7 +16,7 @@
 
 Type a name. Watch a few seconds of growth. Meet the tree you've been feeding for years without knowing it.
 
-👉 **Try yours: {DEPLOYED_URL}**
+👉 **Try yours: https://ayushbharadva.github.io/overgrowth/**
 
 *(cover image / demo GIF here)*
 
@@ -66,7 +66,7 @@ Two trees I met this weekend:
 
 Without an auth token you can't get the true contribution graph — so Overgrowth reads languages, stars, dormancy and push-hour rhythms instead. And the unauthenticated rate limit is 60 requests/hour per IP; if the forest gets crowded, it tells you kindly.
 
-Code: **{REPO_URL}** — built within the challenge window, AI-assisted (Claude Code), as the rules allow.
+Code: **https://github.com/ayushbharadva/overgrowth** — built within the challenge window, AI-assisted (Claude Code), as the rules allow.
 
 ## Try these
 
