@@ -6,7 +6,7 @@
 
 **Title:** Every commit you've ever pushed was feeding a tree. I built the thing that lets you meet it.
 
-**Tags:** #weekendchallenge #showdev #javascript #creativecoding
+**Tags:** #devchallenge #weekendchallenge #showdev #creativecoding
 
 ---
 
@@ -16,7 +16,9 @@
 
 **Overgrowth** grows a living, breathing generative tree out of a GitHub username — a portrait of how a person builds, drawn from every repo, language, star and late-night push.
 
-Type a name. Watch a few seconds of growth. Meet the tree you've been feeding for years without knowing it. Then the tree does something I didn't expect to love this much: **it writes you a short poem about yourself, and reads it to you out loud.**
+Type a name. Watch a few seconds of growth. Meet the tree you've been feeding for years without knowing it. Then the tree does something I didn't expect to love this much: **it writes you a short poem about yourself — a little lantern-carrying wanderer walks in under the canopy to deliver it — and reads it to you out loud.**
+
+And because passion is also rivalry: hit **⚔ vs** and grow two trees side by side — you and a friend, stat face-off between them, one shareable link.
 
 The challenge said *passion* — rivalries, fandom, the World Cup. But the line that got me was **"the love that fuels late-night side projects."** That love already has a data trail; GitHub just renders it as the least romantic thing imaginable — a grid of flat green squares. I wanted the same history to grow something that looks *alive*. The emotional distance between "a chart of my commits" and "a tree my commits have visibly been feeding" is the entire project.
 
@@ -65,13 +67,14 @@ A seeded RNG (mulberry32) keyed off the username makes it **deterministic**: you
 
 Growth animates depth-by-depth via `requestAnimationFrame`, then settles into idle sway with stars and fireflies — 60fps on the biggest trees I could find. Save your tree as PNG, share it with a `?u=` link.
 
-**The tree's voice.** Every tree gets a deterministic one-line reading composed from its stats. When the full stack is live, that upgrades: **Gemini** receives the tree's raw signals — years, languages, blossoms, scars, night-owl rhythm — and writes a 3-line poem *in the voice of the tree, addressed to its owner*. Then **ElevenLabs** reads it aloud. Hearing a calm voice say the words your abandoned repos became is genuinely a little emotional, and I built the thing.
+**The tree's voice.** Every tree gets a deterministic one-line reading composed from its stats. When the full stack is live, that upgrades: **Gemini** receives the tree's raw signals — years, languages, blossoms, scars, night-owl rhythm — and writes a 3-line poem *in the voice of the tree, addressed to its owner*. A tiny lantern-carrying wanderer walks in from the dark, stops under your canopy, and types it out in a speech bubble — then **ElevenLabs** reads it aloud. Hearing a calm voice say the words your abandoned repos became is genuinely a little emotional, and I built the thing.
 
 Both run behind two small serverless routes so no keys ever touch the client — and everything degrades gracefully: no backend, and you still get the tree and its written reading.
 
 ## Prize Categories
 
-**Google AI** (Gemini writes each tree's poem from its growth signals) and **ElevenLabs** (the tree reads its poem aloud).
+- **Best use of Google AI** — Gemini receives each tree's raw growth signals (years, languages, blossoms, scars, night-owl rhythm) and writes a 3-line poem *in the voice of the tree, addressed to its owner*. Structured output (schema-enforced JSON, thinking disabled) keeps draft scratch-work out of the poem.
+- **Best use of ElevenLabs** — the tree then reads its poem aloud while a little lantern-carrying wanderer delivers it under the canopy. Serverless route, keys never touch the client, and it degrades gracefully to the written reading.
 
 ---
 

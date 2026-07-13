@@ -30,7 +30,11 @@ Type a username. Watch it grow. Paste your friend's username and meet a complete
 
 ## The tree speaks
 
-Every tree gets a **reading** — a one-line caption composed deterministically from its stats. With the full stack deployed, that upgrades: **Gemini** writes a 3-line poem in the voice of the tree, addressed to its owner, and **ElevenLabs** reads it aloud ("🔊 hear your tree"). Both degrade gracefully — without the backend you still get the tree and its written reading.
+Every tree gets a **reading** — a one-line caption composed deterministically from its stats. With the full stack deployed, that upgrades: **Gemini** writes a 3-line poem in the voice of the tree, addressed to its owner, and a lantern-carrying **wanderer** walks in under the canopy to deliver it in a speech bubble. **ElevenLabs** reads it aloud ("🔊 hear your tree"). Everything degrades gracefully — without the backend you still get the tree and its written reading.
+
+## Face-off
+
+Hit **⚔ vs** to grow two trees side by side — two friends, two histories, one forest. A stat face-off (years, repos, stars, languages, followers, dormant repos, night-owl rhythm) sits between them, and the whole comparison is linkable with `?u=alice&vs=bob`.
 
 ## Tech
 

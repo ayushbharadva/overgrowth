@@ -4,12 +4,15 @@
 import { Branch, generateTree, measureTree } from "./tree";
 import { TreeParams } from "./params";
 import { mulberry32, hashString, Rng } from "./rng";
-import { hexToRgb, rgbStr, lighten } from "./color";
+import { hexToRgb, rgbStr, lighten, mix } from "./color";
 
 export const CANVAS_W = 960;
 export const CANVAS_H = 680;
 
 const GROW_MS = 4600;
+// the wanderer: walks in when the poem arrives, then speaks it
+const WALK_MS = 2600;
+const TYPE_CPS = 26; // speech-bubble typewriter speed, chars/second
 
 interface Star {
   x: number;
@@ -62,7 +65,8 @@ export class TreeRenderer {
   private disposed = false;
   private stars: Star[] = [];
   private fireflies: Firefly[] = [];
-  private barkColor: string;
+  private barkByDepth: string[];
+  private speech: { lines: string[]; start: number } | null = null;
   private deadColor = "rgba(110,112,120,0.9)";
   private glowColor: string;
   private treeScale = 1;
@@ -100,7 +104,13 @@ export class TreeRenderer {
     const centerShift = (this.treeScale * (bounds.minX + bounds.maxX)) / 2;
     this.baseX = CANVAS_W / 2 - Math.max(-90, Math.min(90, centerShift));
 
-    this.barkColor = "#4a3728";
+    // bark lightens toward the twigs — cheap depth cue that keeps the
+    // canopy from reading as a flat diagram
+    const barkBase = hexToRgb("#4a3728");
+    const barkTip = hexToRgb("#7a5f45");
+    this.barkByDepth = Array.from({ length: 10 }, (_, d) =>
+      rgbStr(mix(barkBase, barkTip, Math.min(1, d / 8)))
+    );
     this.glowColor = rgbStr(lighten(hexToRgb(params.palette[0]), 0.15), 0.07);
 
     // background props seeded separately so the sky is unique per user too
@@ -155,6 +165,12 @@ export class TreeRenderer {
   dispose() {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
+  }
+
+  // the poem arrived: a wanderer walks in from the left, stops under the
+  // tree and delivers it in a speech bubble
+  setSpeech(lines: string[]) {
+    this.speech = { lines, start: performance.now() };
   }
 
   // exports the tree; when reading lines are passed, they're baked into a
@@ -217,6 +233,7 @@ export class TreeRenderer {
 
     this.drawGround(ctx, groundY);
     this.drawFireflies(ctx, time, growT);
+    if (this.speech) this.drawWanderer(ctx, now, groundY);
     this.drawSignature(ctx);
 
     if (!this.completed && growT >= 1) {
@@ -309,7 +326,9 @@ export class TreeRenderer {
   }
 
   private strokeBranch(ctx: CanvasRenderingContext2D, b: Branch, p: number) {
-    ctx.strokeStyle = b.dead ? this.deadColor : this.barkColor;
+    ctx.strokeStyle = b.dead
+      ? this.deadColor
+      : this.barkByDepth[Math.min(b.depth, 9)];
     ctx.lineCap = "round";
 
     if (b.width < 2.4) {
@@ -407,6 +426,142 @@ export class TreeRenderer {
       ctx.restore();
     }
     ctx.globalAlpha = 1;
+  }
+
+  private drawWanderer(
+    ctx: CanvasRenderingContext2D,
+    now: number,
+    groundY: number
+  ) {
+    const speech = this.speech!;
+    const fy = groundY + 16; // feet rest on the ground mound
+    const stopX = Math.max(80, this.baseX - 170);
+    const t = clamp((now - speech.start) / WALK_MS, 0, 1);
+    const ease = t * t * (3 - 2 * t);
+    const x = -34 + (stopX + 34) * ease;
+    const walking = t < 1;
+    const time = now / 1000;
+    const step = walking ? Math.sin(time * 11) : 0;
+    const bob = walking
+      ? Math.abs(Math.cos(time * 11)) * 1.6
+      : Math.sin(time * 1.6) * 0.8; // gentle idle breathing once stopped
+
+    ctx.save();
+    // pool of lantern light around them
+    const glow = ctx.createRadialGradient(x, fy - 14, 2, x, fy - 14, 46);
+    glow.addColorStop(0, "rgba(255,214,140,0.20)");
+    glow.addColorStop(1, "rgba(255,214,140,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(x - 50, fy - 62, 100, 100);
+
+    const hipY = fy - 15 - bob;
+    const shY = fy - 29 - bob;
+    const headY = fy - 36 - bob;
+    ctx.strokeStyle = "#39466b";
+    ctx.lineCap = "round";
+    // legs
+    ctx.lineWidth = 3.4;
+    ctx.beginPath();
+    ctx.moveTo(x, hipY);
+    ctx.lineTo(x + step * 7 + 2, fy);
+    ctx.moveTo(x, hipY);
+    ctx.lineTo(x - step * 7 - 2, fy);
+    ctx.stroke();
+    // body
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(x, hipY);
+    ctx.lineTo(x, shY);
+    ctx.stroke();
+    // arm reaching forward with the lantern
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x, shY + 3);
+    ctx.lineTo(x + 9, shY + 9);
+    ctx.stroke();
+    // head
+    ctx.fillStyle = "#39466b";
+    ctx.beginPath();
+    ctx.arc(x + 1, headY, 5.2, 0, Math.PI * 2);
+    ctx.fill();
+    // lantern
+    const lx = x + 10;
+    const ly = shY + 13;
+    ctx.strokeStyle = "rgba(255,214,140,0.7)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x + 9, shY + 9);
+    ctx.lineTo(lx, ly - 4);
+    ctx.stroke();
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = "rgba(255,214,140,0.95)";
+    ctx.fillStyle = "#ffd98a";
+    ctx.beginPath();
+    ctx.arc(lx, ly, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    if (walking) return;
+    const sinceStop = (now - speech.start - WALK_MS) / 1000;
+    if (sinceStop <= 0) return;
+    const full = speech.lines.join("\n");
+    const shown = full.slice(0, Math.floor(sinceStop * TYPE_CPS));
+    if (shown) this.drawBubble(ctx, shown, x, headY - 10);
+  }
+
+  private drawBubble(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    ax: number,
+    bottomY: number
+  ) {
+    ctx.save();
+    ctx.font = 'italic 13.5px Georgia, "Times New Roman", serif';
+    // wrap each poem line to the bubble width
+    const lines: string[] = [];
+    for (const raw of text.split("\n")) {
+      let cur = "";
+      for (const word of raw.split(" ")) {
+        const cand = cur ? `${cur} ${word}` : word;
+        if (cur && ctx.measureText(cand).width > 250) {
+          lines.push(cur);
+          cur = word;
+        } else {
+          cur = cand;
+        }
+      }
+      lines.push(cur);
+    }
+    const lh = 19;
+    const padX = 14;
+    const padY = 11;
+    const w =
+      Math.max(...lines.map((l) => ctx.measureText(l).width), 40) + padX * 2;
+    const h = lines.length * lh + padY * 2;
+    const bx = clamp(ax - 20, 12, CANVAS_W - w - 12);
+    const by = bottomY - h - 12;
+
+    ctx.fillStyle = "rgba(11,17,33,0.92)";
+    ctx.strokeStyle = "rgba(197,207,230,0.22)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, w, h, 10);
+    ctx.fill();
+    ctx.stroke();
+    // tail down to the wanderer
+    ctx.beginPath();
+    ctx.moveTo(ax + 2, bottomY - 2);
+    ctx.lineTo(ax - 6, by + h - 1);
+    ctx.lineTo(ax + 14, by + h - 1);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "#d7e0f4";
+    ctx.textAlign = "left";
+    lines.forEach((l, i) =>
+      ctx.fillText(l, bx + padX, by + padY + 14 + i * lh)
+    );
+    ctx.restore();
   }
 
   private drawSignature(ctx: CanvasRenderingContext2D) {

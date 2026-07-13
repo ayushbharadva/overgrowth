@@ -2,69 +2,108 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TreeRenderer, CANVAS_W, CANVAS_H } from "@/lib/render";
-import { TreeParams, fakeParams } from "@/lib/params";
+import { TreeParams, TreeStats, fakeParams } from "@/lib/params";
 import { fetchTreeParams, GithubError } from "@/lib/github";
 import { languageColor } from "@/lib/langColors";
 import { treeReading } from "@/lib/reading";
 
 type Phase = "idle" | "loading" | "growing" | "grown" | "error";
 
+// GitHub usernames: alphanumeric + inner hyphens, max 39 chars
+const USERNAME_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/;
+
+function cleanName(raw: string): string {
+  return raw.trim().replace(/^@/, "");
+}
+
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasBRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<TreeRenderer | null>(null);
+  const rendererBRef = useRef<TreeRenderer | null>(null);
   const [input, setInput] = useState("");
+  const [inputB, setInputB] = useState("");
+  const [compareOn, setCompareOn] = useState(false); // second input visible
+  const [comparing, setComparing] = useState(false); // two trees on screen
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState("");
   const [params, setParams] = useState<TreeParams | null>(null);
+  const [paramsB, setParamsB] = useState<TreeParams | null>(null);
   const [demo, setDemo] = useState(false);
   const [poem, setPoem] = useState<string[] | null>(null);
   const [voiceState, setVoiceState] = useState<"off" | "ready" | "loading" | "playing">("off");
+  const [copied, setCopied] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // replaying a poem shouldn't re-bill the TTS API
   const voiceCacheRef = useRef<Map<string, string>>(new Map());
+  // guards against a slow poem response attaching to a newer tree
+  const growIdRef = useRef(0);
+
+  const resetExtras = useCallback(() => {
+    growIdRef.current++;
+    setError("");
+    setDemo(false);
+    setPoem(null);
+    setVoiceState("off");
+    setCopied(false);
+    audioRef.current?.pause();
+  }, []);
 
   const growFromParams = useCallback((p: TreeParams) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     rendererRef.current?.dispose();
+    rendererBRef.current?.dispose();
+    setComparing(false);
     setParams(p);
+    setParamsB(null);
     setPhase("growing");
     const renderer = new TreeRenderer(canvas, p, {
       onComplete: () => setPhase("grown"),
     });
     rendererRef.current = renderer;
     renderer.begin();
+    return renderer;
+  }, []);
+
+  const requestPoem = useCallback((stats: TreeStats) => {
+    const id = ++growIdRef.current;
+    // the tree writes a poem while it grows (503/404 = feature not
+    // deployed; the deterministic reading stays)
+    fetch("/api/poem", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stats }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (id !== growIdRef.current) return; // a newer tree grew — stale
+        if (d?.lines?.length) {
+          setPoem(d.lines);
+          setVoiceState("ready");
+          // the wanderer walks in and delivers it
+          rendererRef.current?.setSpeech(d.lines);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const grow = useCallback(
     async (username: string) => {
-      const u = username.trim().replace(/^@/, "");
+      const u = cleanName(username);
       if (!u) return;
+      resetExtras();
+      if (!USERNAME_RE.test(u)) {
+        setPhase("error");
+        setError(`"${u}" isn't a valid GitHub username.`);
+        return;
+      }
       setPhase("loading");
-      setError("");
-      setDemo(false);
-      setPoem(null);
-      setVoiceState("off");
-      audioRef.current?.pause();
       try {
         const p = await fetchTreeParams(u);
         window.history.replaceState(null, "", `?u=${encodeURIComponent(u)}`);
         growFromParams(p);
-        // the tree writes a poem while it grows (503/404 = feature not
-        // deployed; the deterministic reading stays)
-        fetch("/api/poem", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ stats: p.stats }),
-        })
-          .then((r) => (r.ok ? r.json() : null))
-          .then((d) => {
-            if (d?.lines?.length) {
-              setPoem(d.lines);
-              setVoiceState("ready");
-            }
-          })
-          .catch(() => {});
+        requestPoem(p.stats);
       } catch (e) {
         setPhase("error");
         setError(
@@ -72,13 +111,82 @@ export default function Home() {
         );
       }
     },
-    [growFromParams]
+    [growFromParams, requestPoem, resetExtras]
   );
 
-  // ?u=username links grow on load
+  const growCompare = useCallback(
+    async (nameA: string, nameB: string) => {
+      const a = cleanName(nameA);
+      const b = cleanName(nameB);
+      if (!a || !b) return;
+      resetExtras();
+      for (const u of [a, b]) {
+        if (!USERNAME_RE.test(u)) {
+          setPhase("error");
+          setError(`"${u}" isn't a valid GitHub username.`);
+          return;
+        }
+      }
+      if (a.toLowerCase() === b.toLowerCase()) {
+        setPhase("error");
+        setError("Two different usernames — that's the point of a face-off.");
+        return;
+      }
+      setPhase("loading");
+      try {
+        const tag = (u: string) => (e: unknown) => {
+          if (e instanceof GithubError && e.kind === "notfound") {
+            throw new GithubError("notfound", `@${u} doesn't exist on GitHub.`);
+          }
+          throw e;
+        };
+        const [pa, pb] = await Promise.all([
+          fetchTreeParams(a).catch(tag(a)),
+          fetchTreeParams(b).catch(tag(b)),
+        ]);
+        window.history.replaceState(
+          null,
+          "",
+          `?u=${encodeURIComponent(a)}&vs=${encodeURIComponent(b)}`
+        );
+        const cA = canvasRef.current;
+        const cB = canvasBRef.current;
+        if (!cA || !cB) return;
+        rendererRef.current?.dispose();
+        rendererBRef.current?.dispose();
+        setParams(pa);
+        setParamsB(pb);
+        setComparing(true);
+        setPhase("growing");
+        let done = 0;
+        const onComplete = () => {
+          if (++done === 2) setPhase("grown");
+        };
+        rendererRef.current = new TreeRenderer(cA, pa, { onComplete });
+        rendererBRef.current = new TreeRenderer(cB, pb, { onComplete });
+        rendererRef.current.begin();
+        rendererBRef.current.begin();
+      } catch (e) {
+        setPhase("error");
+        setError(
+          e instanceof GithubError ? e.message : "Something went wrong. Try again."
+        );
+      }
+    },
+    [resetExtras]
+  );
+
+  // ?u=username (&vs=other) links grow on load
   useEffect(() => {
-    const u = new URLSearchParams(window.location.search).get("u");
-    if (u) {
+    const sp = new URLSearchParams(window.location.search);
+    const u = sp.get("u");
+    const vs = sp.get("vs");
+    if (u && vs) {
+      setInput(u);
+      setInputB(vs);
+      setCompareOn(true);
+      growCompare(u, vs);
+    } else if (u) {
       setInput(u);
       grow(u);
     } else {
@@ -86,23 +194,26 @@ export default function Home() {
       setDemo(true);
       growFromParams(fakeParams("overgrowth"));
     }
-    return () => rendererRef.current?.dispose();
-  }, [grow, growFromParams]);
+    return () => {
+      rendererRef.current?.dispose();
+      rendererBRef.current?.dispose();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const savePNG = () => {
-    const renderer = rendererRef.current;
-    if (!renderer || !params) return;
+  const readingLines = (stats: TreeStats) =>
+    treeReading(stats)
+      .split(" — ")
+      .map((s, i) => (i ? `— ${s}` : s));
+
+  const savePNG = (renderer: TreeRenderer | null, p: TreeParams | null, withPoem: boolean) => {
+    if (!renderer || !p) return;
     // the exported image carries its reading: the poem when we have one,
     // otherwise the deterministic caption split at its em-dashes
-    const lines = demo
-      ? undefined
-      : poem ??
-        treeReading(params.stats)
-          .split(" — ")
-          .map((s, i) => (i ? `— ${s}` : s));
+    const lines = demo ? undefined : withPoem ? poem ?? readingLines(p.stats) : readingLines(p.stats);
     const a = document.createElement("a");
     a.href = renderer.toPNG(lines);
-    a.download = `overgrowth-${params.stats.username}.png`;
+    a.download = `overgrowth-${p.stats.username}.png`;
     a.click();
   };
 
@@ -139,15 +250,62 @@ export default function Home() {
 
   const copyLink = async () => {
     if (!params) return;
-    const url = `${window.location.origin}?u=${encodeURIComponent(
-      params.stats.username
-    )}`;
-    await navigator.clipboard.writeText(url);
-    setError("");
-    setPhase("grown");
+    const base = `${window.location.origin}?u=${encodeURIComponent(params.stats.username)}`;
+    const url =
+      comparing && paramsB
+        ? `${base}&vs=${encodeURIComponent(paramsB.stats.username)}`
+        : base;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // clipboard blocked — nothing to do
+    }
+  };
+
+  const regrow = () => {
+    if (comparing && params && paramsB) {
+      growCompare(params.stats.username, paramsB.stats.username);
+    } else if (params) {
+      const renderer = growFromParams(params);
+      if (poem) renderer?.setSpeech(poem);
+    }
+  };
+
+  const growSample = () => {
+    resetExtras();
+    setDemo(true);
+    setInput("");
+    setInputB("");
+    window.history.replaceState(null, "", window.location.pathname);
+    growFromParams(fakeParams("overgrowth"));
   };
 
   const stats = params?.stats;
+  const statsB = paramsB?.stats;
+  const canGrow =
+    phase !== "loading" &&
+    cleanName(input).length > 0 &&
+    (!compareOn || cleanName(inputB).length > 0);
+
+  const faceoffRows: {
+    label: string;
+    a: number;
+    b: number;
+    fmt: (v: number) => string;
+    lowerWins?: boolean;
+  }[] =
+    stats && statsB
+      ? [
+          { label: "years", a: stats.years, b: statsB.years, fmt: (v: number) => `${v}` },
+          { label: "repos", a: stats.repoCount, b: statsB.repoCount, fmt: (v: number) => `${v}` },
+          { label: "stars ⭐", a: stats.stars, b: statsB.stars, fmt: (v: number) => v.toLocaleString() },
+          { label: "languages", a: stats.languages.length, b: statsB.languages.length, fmt: (v: number) => `${v}` },
+          { label: "followers", a: stats.followers, b: statsB.followers, fmt: (v: number) => v.toLocaleString() },
+          { label: "dormant 🥀", a: stats.dormantRepos, b: statsB.dormantRepos, fmt: (v: number) => `${v}`, lowerWins: true },
+        ]
+      : [];
 
   return (
     <main>
@@ -160,10 +318,11 @@ export default function Home() {
       </div>
 
       <form
-        className="grow-form"
+        className={`grow-form${compareOn ? " compare" : ""}`}
         onSubmit={(e) => {
           e.preventDefault();
-          grow(input);
+          if (compareOn) growCompare(input, inputB);
+          else grow(input);
         }}
       >
         <input
@@ -174,33 +333,116 @@ export default function Home() {
           autoCapitalize="none"
           autoCorrect="off"
         />
-        <button type="submit" disabled={phase === "loading"}>
-          {phase === "loading" ? "reading…" : "grow"}
+        <button
+          type="button"
+          className="vs-toggle"
+          title={compareOn ? "back to a single tree" : "compare two trees"}
+          onClick={() => setCompareOn((v) => !v)}
+        >
+          {compareOn ? "✕" : "⚔ vs"}
+        </button>
+        {compareOn && (
+          <input
+            value={inputB}
+            onChange={(e) => setInputB(e.target.value)}
+            placeholder="a friend's username"
+            spellCheck={false}
+            autoCapitalize="none"
+            autoCorrect="off"
+          />
+        )}
+        <button type="submit" disabled={!canGrow}>
+          {phase === "loading" ? "reading…" : compareOn ? "grow both" : "grow"}
         </button>
       </form>
 
       <div className={`status${phase === "error" ? " error" : ""}`}>
-        {phase === "loading" && `reading @${input.trim().replace(/^@/, "")}'s history…`}
+        {phase === "loading" &&
+          (compareOn
+            ? `reading two histories…`
+            : `reading @${cleanName(input)}'s history…`)}
         {phase === "growing" && !demo && "growing…"}
         {(phase === "growing" || phase === "grown") && demo &&
           "a sample tree — type a username to grow a real one"}
-        {phase === "error" && error}
-        {phase === "grown" && !demo && stats && (
+        {phase === "error" && (
+          <>
+            {error}{" "}
+            <button className="sample-btn" onClick={growSample}>
+              grow a sample tree instead
+            </button>
+          </>
+        )}
+        {phase === "grown" && !demo && stats && !comparing && (
           <>
             grown from {stats.years} year{stats.years === 1 ? "" : "s"} of{" "}
             @{stats.username}&apos;s building
           </>
         )}
+        {phase === "grown" && comparing && stats && statsB && (
+          <>
+            @{stats.username} and @{statsB.username} — two trees, same forest
+          </>
+        )}
       </div>
 
-      <div
-        className="canvas-card"
-        style={{ maxWidth: CANVAS_W, aspectRatio: `${CANVAS_W}/${CANVAS_H}` }}
-      >
-        <canvas ref={canvasRef} width={CANVAS_W} height={CANVAS_H} />
+      <div className={`canvas-row${comparing ? " compare" : ""}`}>
+        <div
+          className="canvas-card"
+          style={{ maxWidth: CANVAS_W, aspectRatio: `${CANVAS_W}/${CANVAS_H}` }}
+        >
+          <canvas ref={canvasRef} width={CANVAS_W} height={CANVAS_H} />
+        </div>
+        <div
+          className={`canvas-card${comparing ? "" : " hidden"}`}
+          style={{ maxWidth: CANVAS_W, aspectRatio: `${CANVAS_W}/${CANVAS_H}` }}
+        >
+          <canvas ref={canvasBRef} width={CANVAS_W} height={CANVAS_H} />
+        </div>
       </div>
 
-      {stats && !demo && (phase === "grown" || phase === "growing") && (
+      {comparing && stats && statsB && (phase === "grown" || phase === "growing") && (
+        <>
+          <div className="faceoff">
+            <div className="faceoff-row head">
+              <span className="a">@{stats.username}</span>
+              <span className="label" />
+              <span className="b">@{statsB.username}</span>
+            </div>
+            {faceoffRows.map((r) => {
+              const aWins = r.lowerWins ? r.a < r.b : r.a > r.b;
+              const bWins = r.lowerWins ? r.b < r.a : r.b > r.a;
+              return (
+                <div className="faceoff-row" key={r.label}>
+                  <span className={`a${aWins ? " win" : ""}`}>{r.fmt(r.a)}</span>
+                  <span className="label">{r.label}</span>
+                  <span className={`b${bWins ? " win" : ""}`}>{r.fmt(r.b)}</span>
+                </div>
+              );
+            })}
+            <div className="faceoff-row">
+              <span className="a">{stats.nightOwl ? "🌙 night owl" : "☀️ daylight"}</span>
+              <span className="label">rhythm</span>
+              <span className="b">{statsB.nightOwl ? "🌙 night owl" : "☀️ daylight"}</span>
+            </div>
+          </div>
+          {phase === "grown" && (
+            <div className="actions">
+              <button onClick={() => savePNG(rendererRef.current, params, false)}>
+                save @{stats.username}.png
+              </button>
+              <button onClick={() => savePNG(rendererBRef.current, paramsB, false)}>
+                save @{statsB.username}.png
+              </button>
+              <button onClick={copyLink}>
+                {copied ? "copied ✓" : "copy face-off link"}
+              </button>
+              <button onClick={regrow}>regrow</button>
+            </div>
+          )}
+        </>
+      )}
+
+      {stats && !demo && !comparing && (phase === "grown" || phase === "growing") && (
         <>
           <div className="reading">
             {poem ? (
@@ -208,7 +450,7 @@ export default function Home() {
                 {poem.map((line, i) => (
                   <span key={i}>{line}</span>
                 ))}
-                <cite>— your tree, via Gemini</cite>
+                <cite>— your tree, via Gemini · voiced by ElevenLabs</cite>
               </blockquote>
             ) : (
               <p className="caption">{treeReading(stats)}</p>
@@ -254,11 +496,13 @@ export default function Home() {
 
           {phase === "grown" && (
             <div className="actions">
-              <button onClick={savePNG}>save as PNG</button>
-              <button onClick={copyLink}>copy share link</button>
-              <button onClick={() => params && growFromParams(params)}>
-                regrow
+              <button onClick={() => savePNG(rendererRef.current, params, true)}>
+                save as PNG
               </button>
+              <button onClick={copyLink}>
+                {copied ? "copied ✓" : "copy share link"}
+              </button>
+              <button onClick={regrow}>regrow</button>
             </div>
           )}
         </>
@@ -296,7 +540,8 @@ export default function Home() {
       </div>
 
       <footer>
-        No login, no tokens — reads only public GitHub data from your browser.
+        No login — the tree grows from public GitHub data, read right in your
+        browser. Poem &amp; voice run behind two tiny serverless routes.
         <br />
         Built for the DEV Weekend Challenge: Passion Edition. Passion, rendered.
       </footer>

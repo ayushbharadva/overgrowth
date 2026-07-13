@@ -118,7 +118,11 @@ export function generateTree(params: TreeParams): Branch {
     heading: number // cumulative angle from vertical
   ): Branch {
     branchCount++;
-    const bend = (rng() - 0.5) * params.crookedness * 0.9 + params.lean * 0.25;
+    // trunk bend stays capped — high-crookedness (night-owl) trees
+    // otherwise fold their longest branch clean over
+    let bend =
+      (rng() - 0.5) * params.crookedness * 0.9 + params.lean * 0.25;
+    if (depth === 0) bend = Math.max(-0.14, Math.min(0.14, bend));
     const b: Branch = {
       angle,
       length,
@@ -187,13 +191,18 @@ export function generateTree(params: TreeParams): Branch {
       // negative gravitropism: branches spring back toward the sky instead
       // of curling into drooping tendrils
       childAngle -= heading * 0.16;
+      // the lower structure stays grounded — night-owl lean + wobble can
+      // otherwise kink the leader 40° right at the first split
+      if (depth <= 1) childAngle = Math.max(-0.3, Math.min(0.3, childAngle));
       if (Math.abs(heading + childAngle) > 1.7) {
         childAngle = (1.7 * Math.sign(heading + childAngle) - heading) * 0.85;
       }
 
+      // wide length jitter keeps terminals from all reaching the same
+      // radius, which reads as an umbrella shell instead of a canopy
       const childLen =
         length *
-        (depth === 0 ? 0.85 : 0.7 + rng() * 0.16) *
+        (depth === 0 ? 0.85 : 0.66 + rng() * 0.24) *
         (n === 3 ? 0.94 : 1);
       const childWidth = Math.max(0.8, width * (0.58 + rng() * 0.12));
       // some subtrees died with the repos that fed them
