@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Background from "./Background";
 
 const title = "Overgrowth — grow a tree from your GitHub history";
 const description =
@@ -27,7 +28,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <Background />
+        {children}
+      </body>
     </html>
   );
 }

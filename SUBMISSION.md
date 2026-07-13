@@ -1,16 +1,18 @@
-# DEV post — paste into dev.to, tag `#weekendchallenge`
+# DEV post — 60-second publish checklist
 
-> Before posting: add a cover image (a saved PNG of YOUR tree), a short demo GIF after the live link, and two contrasting screenshots where marked.
+> Deadline: **July 13, 6:59 AM UTC (12:29 PM IST)**. Everything below is ready — just paste and upload.
+>
+> 1. dev.to → **Create Post**
+> 2. **Title:** `Every commit you've ever pushed was feeding a tree. I built the thing that lets you meet it.`
+> 3. **Tags:** `devchallenge, weekendchallenge, showdev, creativecoding`
+> 4. **Cover image:** upload `press/tree-ayushbharadva-cover.png`
+> 5. Paste everything below the `POST BODY` line as the body
+> 6. In the Demo section, use the image-upload button to replace the two `[upload …]` markers with `press/tree-torvalds.png` and `press/tree-sindresorhus.png`
+> 7. **Publish.** (Demo GIF is optional polish — skip it if short on time; the post reads fine without.)
 
 ---
 
-**Title:** Every commit you've ever pushed was feeding a tree. I built the thing that lets you meet it.
-
-**Tags:** #devchallenge #weekendchallenge #showdev #creativecoding
-
----
-
-*(cover image: your own tree PNG)*
+<!-- POST BODY — paste from here down -->
 
 ## What I Built
 
@@ -28,13 +30,15 @@ And it's honest. Your abandoned repos are right there on the tree — bare, grey
 
 👉 **Grow yours: https://overgrowth-one.vercel.app**
 
-*(demo GIF here: type username → tree grows → poem appears → 🔊 hear your tree)*
+Type a username → the tree grows → a lantern-carrying wanderer delivers its poem → 🔊 hear it read aloud.
 
 Two trees I met this weekend, same API, opposite souls:
 
-*(screenshot: torvalds — a moonlit monolingual C giant, 250k-star blossoms, bare dead limbs, leaning into the night)*
+[upload press/tree-torvalds.png]
+*@torvalds — a moonlit monolingual C giant, 250k-star blossoms, bare dead limbs, leaning into the night*
 
-*(screenshot: a polyglot — dense multicolored canopy in real linguist colors)*
+[upload press/tree-sindresorhus.png]
+*@sindresorhus — a polyglot's dense multicolored canopy in real linguist colors*
 
 My favorite reading it produced, for a tree grown from 15 years of C:
 
