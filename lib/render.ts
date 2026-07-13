@@ -11,7 +11,7 @@ export const CANVAS_H = 680;
 
 const GROW_MS = 4600;
 // the wanderer: walks in when the poem arrives, then speaks it
-const WALK_MS = 2600;
+const WALK_MS = 4400;
 const TYPE_CPS = 26; // speech-bubble typewriter speed, chars/second
 
 interface Star {
@@ -441,9 +441,9 @@ export class TreeRenderer {
     const x = -34 + (stopX + 34) * ease;
     const walking = t < 1;
     const time = now / 1000;
-    const step = walking ? Math.sin(time * 11) : 0;
+    const step = walking ? Math.sin(time * 7) : 0;
     const bob = walking
-      ? Math.abs(Math.cos(time * 11)) * 1.6
+      ? Math.abs(Math.cos(time * 7)) * 1.4
       : Math.sin(time * 1.6) * 0.8; // gentle idle breathing once stopped
 
     ctx.save();
@@ -454,44 +454,55 @@ export class TreeRenderer {
     ctx.fillStyle = glow;
     ctx.fillRect(x - 50, fy - 62, 100, 100);
 
+    // drawn front-on, facing the viewer
     const hipY = fy - 15 - bob;
     const shY = fy - 29 - bob;
-    const headY = fy - 36 - bob;
+    const headY = fy - 37 - bob;
     ctx.strokeStyle = "#39466b";
     ctx.lineCap = "round";
-    // legs
+    // legs: from the front a stride reads as alternating little lifts
+    const liftL = walking ? Math.max(0, step) * 3 : 0;
+    const liftR = walking ? Math.max(0, -step) * 3 : 0;
     ctx.lineWidth = 3.4;
     ctx.beginPath();
-    ctx.moveTo(x, hipY);
-    ctx.lineTo(x + step * 7 + 2, fy);
-    ctx.moveTo(x, hipY);
-    ctx.lineTo(x - step * 7 - 2, fy);
+    ctx.moveTo(x - 1.5, hipY);
+    ctx.lineTo(x - 4.5, fy - liftL);
+    ctx.moveTo(x + 1.5, hipY);
+    ctx.lineTo(x + 4.5, fy - liftR);
     ctx.stroke();
-    // body
-    ctx.lineWidth = 5;
+    // torso, a touch wider seen from the front
+    ctx.lineWidth = 6.5;
     ctx.beginPath();
     ctx.moveTo(x, hipY);
     ctx.lineTo(x, shY);
     ctx.stroke();
-    // arm reaching forward with the lantern
+    // arms hanging at the sides, right hand carrying the lantern
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(x, shY + 3);
-    ctx.lineTo(x + 9, shY + 9);
+    ctx.moveTo(x - 3, shY + 2);
+    ctx.lineTo(x - 8, shY + 11);
+    ctx.moveTo(x + 3, shY + 2);
+    ctx.lineTo(x + 8, shY + 10);
     ctx.stroke();
     // head
     ctx.fillStyle = "#39466b";
     ctx.beginPath();
-    ctx.arc(x + 1, headY, 5.2, 0, Math.PI * 2);
+    ctx.arc(x, headY, 5.4, 0, Math.PI * 2);
     ctx.fill();
-    // lantern
-    const lx = x + 10;
-    const ly = shY + 13;
+    // two tiny catchlights so the face reads as looking at you
+    ctx.fillStyle = "rgba(230,238,255,0.85)";
+    ctx.beginPath();
+    ctx.arc(x - 1.8, headY - 0.5, 0.8, 0, Math.PI * 2);
+    ctx.arc(x + 1.8, headY - 0.5, 0.8, 0, Math.PI * 2);
+    ctx.fill();
+    // lantern hanging from the right hand
+    const lx = x + 8.5;
+    const ly = shY + 15;
     ctx.strokeStyle = "rgba(255,214,140,0.7)";
     ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.moveTo(x + 9, shY + 9);
-    ctx.lineTo(lx, ly - 4);
+    ctx.moveTo(x + 8, shY + 10);
+    ctx.lineTo(lx, ly - 3);
     ctx.stroke();
     ctx.shadowBlur = 12;
     ctx.shadowColor = "rgba(255,214,140,0.95)";
