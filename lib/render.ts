@@ -10,8 +10,10 @@ export const CANVAS_W = 960;
 export const CANVAS_H = 680;
 
 const GROW_MS = 4600;
-// the wanderer: walks in when the poem arrives, then speaks it
+// the wanderer: walks in when the poem arrives, turns to face the
+// viewer, then speaks
 const WALK_MS = 4400;
+const TURN_MS = 650;
 const TYPE_CPS = 26; // speech-bubble typewriter speed, chars/second
 
 interface Star {
@@ -440,6 +442,7 @@ export class TreeRenderer {
     const ease = t * t * (3 - 2 * t);
     const x = -34 + (stopX + 34) * ease;
     const walking = t < 1;
+    const sinceWalk = now - speech.start - WALK_MS;
     const time = now / 1000;
     const step = walking ? Math.sin(time * 7) : 0;
     const bob = walking
@@ -454,21 +457,55 @@ export class TreeRenderer {
     ctx.fillStyle = glow;
     ctx.fillRect(x - 50, fy - 62, 100, 100);
 
-    // drawn front-on, facing the viewer
     const hipY = fy - 15 - bob;
     const shY = fy - 29 - bob;
     const headY = fy - 37 - bob;
     ctx.strokeStyle = "#39466b";
     ctx.lineCap = "round";
-    // legs: from the front a stride reads as alternating little lifts
-    const liftL = walking ? Math.max(0, step) * 3 : 0;
-    const liftR = walking ? Math.max(0, -step) * 3 : 0;
+
+    if (walking) {
+      // in profile, striding toward the tree
+      ctx.lineWidth = 3.4;
+      ctx.beginPath();
+      ctx.moveTo(x, hipY);
+      ctx.lineTo(x + step * 7 + 2, fy);
+      ctx.moveTo(x, hipY);
+      ctx.lineTo(x - step * 7 - 2, fy);
+      ctx.stroke();
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(x, hipY);
+      ctx.lineTo(x, shY);
+      ctx.stroke();
+      // lead arm carries the lantern out front
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x, shY + 3);
+      ctx.lineTo(x + 9, shY + 9);
+      ctx.stroke();
+      ctx.fillStyle = "#39466b";
+      ctx.beginPath();
+      ctx.arc(x + 1, headY, 5.2, 0, Math.PI * 2);
+      ctx.fill();
+      this.drawLantern(ctx, x + 9, shY + 9, x + 10, shY + 13);
+      ctx.restore();
+      return;
+    }
+
+    // arrived: pivot to face the viewer — the body narrows edge-on,
+    // then widens into the front pose
+    const turnP = Math.min(1, sinceWalk / TURN_MS);
+    const sx = 0.3 + 0.7 * easeOutCubic(turnP);
+    ctx.translate(x, 0);
+    ctx.scale(sx, 1);
+    ctx.translate(-x, 0);
+
     ctx.lineWidth = 3.4;
     ctx.beginPath();
     ctx.moveTo(x - 1.5, hipY);
-    ctx.lineTo(x - 4.5, fy - liftL);
+    ctx.lineTo(x - 4.5, fy);
     ctx.moveTo(x + 1.5, hipY);
-    ctx.lineTo(x + 4.5, fy - liftR);
+    ctx.lineTo(x + 4.5, fy);
     ctx.stroke();
     // torso, a touch wider seen from the front
     ctx.lineWidth = 6.5;
@@ -489,21 +526,39 @@ export class TreeRenderer {
     ctx.beginPath();
     ctx.arc(x, headY, 5.4, 0, Math.PI * 2);
     ctx.fill();
-    // two tiny catchlights so the face reads as looking at you
-    ctx.fillStyle = "rgba(230,238,255,0.85)";
-    ctx.beginPath();
-    ctx.arc(x - 1.8, headY - 0.5, 0.8, 0, Math.PI * 2);
-    ctx.arc(x + 1.8, headY - 0.5, 0.8, 0, Math.PI * 2);
-    ctx.fill();
-    // lantern hanging from the right hand
-    const lx = x + 8.5;
-    const ly = shY + 15;
+    // catchlights fade in as the face comes around
+    if (turnP > 0.55) {
+      ctx.fillStyle = `rgba(230,238,255,${(0.85 * (turnP - 0.55)) / 0.45})`;
+      ctx.beginPath();
+      ctx.arc(x - 1.8, headY - 0.5, 0.8, 0, Math.PI * 2);
+      ctx.arc(x + 1.8, headY - 0.5, 0.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    this.drawLantern(ctx, x + 8, shY + 10, x + 8.5, shY + 15);
+    ctx.restore();
+
+    const sinceStop = (sinceWalk - TURN_MS) / 1000;
+    if (sinceStop <= 0) return;
+    const full = speech.lines.join("\n");
+    const shown = full.slice(0, Math.floor(sinceStop * TYPE_CPS));
+    if (shown) this.drawBubble(ctx, shown, x, headY - 10);
+  }
+
+  // hanging lantern: short cord from the hand, warm glowing bulb
+  private drawLantern(
+    ctx: CanvasRenderingContext2D,
+    handX: number,
+    handY: number,
+    lx: number,
+    ly: number
+  ) {
     ctx.strokeStyle = "rgba(255,214,140,0.7)";
     ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.moveTo(x + 8, shY + 10);
+    ctx.moveTo(handX, handY);
     ctx.lineTo(lx, ly - 3);
     ctx.stroke();
+    ctx.save();
     ctx.shadowBlur = 12;
     ctx.shadowColor = "rgba(255,214,140,0.95)";
     ctx.fillStyle = "#ffd98a";
@@ -511,13 +566,6 @@ export class TreeRenderer {
     ctx.arc(lx, ly, 3, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-
-    if (walking) return;
-    const sinceStop = (now - speech.start - WALK_MS) / 1000;
-    if (sinceStop <= 0) return;
-    const full = speech.lines.join("\n");
-    const shown = full.slice(0, Math.floor(sinceStop * TYPE_CPS));
-    if (shown) this.drawBubble(ctx, shown, x, headY - 10);
   }
 
   private drawBubble(
