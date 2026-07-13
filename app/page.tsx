@@ -16,6 +16,14 @@ function cleanName(raw: string): string {
   return raw.trim().replace(/^@/, "");
 }
 
+// the deterministic caption split at its em-dashes — always available,
+// even when Gemini is throttled or the backend isn't deployed
+function readingLines(stats: TreeStats): string[] {
+  return treeReading(stats)
+    .split(" — ")
+    .map((s, i) => (i ? `— ${s}` : s));
+}
+
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const canvasBRef = useRef<HTMLCanvasElement>(null);
@@ -68,24 +76,30 @@ export default function Home() {
 
   const requestPoem = useCallback((stats: TreeStats) => {
     const id = ++growIdRef.current;
-    // the tree writes a poem while it grows (503/404 = feature not
-    // deployed; the deterministic reading stays)
+    // the tree writes a poem while it grows; if Gemini is throttled or
+    // absent, the wanderer delivers the deterministic reading instead
     fetch("/api/poem", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ stats }),
     })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
+      .then(async (r) => {
+        const d = r.ok ? await r.json() : null;
         if (id !== growIdRef.current) return; // a newer tree grew — stale
         if (d?.lines?.length) {
           setPoem(d.lines);
           setVoiceState("ready");
-          // the wanderer walks in and delivers it
           rendererRef.current?.setSpeech(d.lines);
+        } else {
+          // voice needs the backend at all (503/404 = not deployed)
+          if (r.status !== 503 && r.status !== 404) setVoiceState("ready");
+          rendererRef.current?.setSpeech(readingLines(stats));
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (id !== growIdRef.current) return;
+        rendererRef.current?.setSpeech(readingLines(stats));
+      });
   }, []);
 
   const grow = useCallback(
@@ -201,11 +215,6 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const readingLines = (stats: TreeStats) =>
-    treeReading(stats)
-      .split(" — ")
-      .map((s, i) => (i ? `— ${s}` : s));
-
   const savePNG = (renderer: TreeRenderer | null, p: TreeParams | null, withPoem: boolean) => {
     if (!renderer || !p) return;
     // the exported image carries its reading: the poem when we have one,
@@ -218,7 +227,7 @@ export default function Home() {
   };
 
   const hearTree = async () => {
-    if (!poem || voiceState === "loading") return;
+    if (voiceState === "loading" || !params) return;
     if (voiceState === "playing") {
       audioRef.current?.pause();
       setVoiceState("ready");
@@ -226,7 +235,8 @@ export default function Home() {
     }
     setVoiceState("loading");
     try {
-      const text = poem.join("\n");
+      // the poem when Gemini delivered one, the reading otherwise
+      const text = (poem ?? readingLines(params.stats)).join("\n");
       let url = voiceCacheRef.current.get(text);
       if (!url) {
         const r = await fetch("/api/voice", {
@@ -269,7 +279,7 @@ export default function Home() {
       growCompare(params.stats.username, paramsB.stats.username);
     } else if (params) {
       const renderer = growFromParams(params);
-      if (poem) renderer?.setSpeech(poem);
+      renderer?.setSpeech(poem ?? readingLines(params.stats));
     }
   };
 

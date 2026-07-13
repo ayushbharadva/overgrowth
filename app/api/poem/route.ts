@@ -4,7 +4,13 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-const MODEL = process.env.GEMINI_MODEL ?? "gemini-flash-latest";
+// free-tier RPM limits are per-model, so falling through to the lite
+// model rides a separate quota bucket when flash is throttled (429)
+const MODELS = [
+  ...(process.env.GEMINI_MODEL ? [process.env.GEMINI_MODEL] : []),
+  "gemini-flash-latest",
+  "gemini-flash-lite-latest",
+];
 
 export async function POST(req: NextRequest) {
   const key = process.env.GEMINI_API_KEY;
@@ -42,62 +48,61 @@ export async function POST(req: NextRequest) {
 - ${nightOwl ? "they push code late at night; you grew crooked, leaning toward the dark" : "they build in daylight hours; you grew steady"}
 Speak as the tree, to them (their username is ${username}). Return only the 3 lines.`;
 
-  try {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${key}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.9,
-            maxOutputTokens: 4000,
-            // schema-enforced JSON + no thinking: keeps draft scratch-work
-            // out of the poem
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: "OBJECT",
-              properties: {
-                lines: {
-                  type: "ARRAY",
-                  items: { type: "STRING" },
-                  minItems: 3,
-                  maxItems: 3,
-                },
-              },
-              required: ["lines"],
-            },
-            thinkingConfig: { thinkingBudget: 0 },
-          },
-        }),
-      }
-    );
-    if (!r.ok) {
-      return NextResponse.json({ error: "upstream" }, { status: 502 });
-    }
-    const data = await r.json();
-    const text: string = (data?.candidates?.[0]?.content?.parts ?? [])
-      .filter((p: { thought?: boolean; text?: string }) => !p.thought && p.text)
-      .map((p: { text: string }) => p.text)
-      .join("");
-    let lines: string[] = [];
+  for (const model of MODELS) {
     try {
-      const parsed = JSON.parse(text);
-      if (Array.isArray(parsed?.lines)) {
-        lines = parsed.lines.map((l: unknown) => String(l).trim()).filter(Boolean).slice(0, 3);
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.9,
+              maxOutputTokens: 4000,
+              // schema-enforced JSON + no thinking: keeps draft scratch-work
+              // out of the poem
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: "OBJECT",
+                properties: {
+                  lines: {
+                    type: "ARRAY",
+                    items: { type: "STRING" },
+                    minItems: 3,
+                    maxItems: 3,
+                  },
+                },
+                required: ["lines"],
+              },
+              thinkingConfig: { thinkingBudget: 0 },
+            },
+          }),
+        }
+      );
+      if (!r.ok) continue; // throttled or down — try the next model
+      const data = await r.json();
+      const text: string = (data?.candidates?.[0]?.content?.parts ?? [])
+        .filter((p: { thought?: boolean; text?: string }) => !p.thought && p.text)
+        .map((p: { text: string }) => p.text)
+        .join("");
+      let lines: string[] = [];
+      try {
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed?.lines)) {
+          lines = parsed.lines.map((l: unknown) => String(l).trim()).filter(Boolean).slice(0, 3);
+        }
+      } catch {
+        // malformed JSON — try the next model
       }
+      if (lines.length < 3) continue;
+      return NextResponse.json(
+        { lines },
+        { headers: { "Cache-Control": "public, s-maxage=3600" } }
+      );
     } catch {
-      // fall through to the length check
+      // network hiccup — try the next model
     }
-    if (lines.length < 3) {
-      return NextResponse.json({ error: "empty" }, { status: 502 });
-    }
-    return NextResponse.json(
-      { lines },
-      { headers: { "Cache-Control": "public, s-maxage=3600" } }
-    );
-  } catch {
-    return NextResponse.json({ error: "upstream" }, { status: 502 });
   }
+  return NextResponse.json({ error: "upstream" }, { status: 502 });
 }
